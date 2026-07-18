@@ -2,6 +2,10 @@ proepr# Humanoid RL — Bipedal Locomotion with Sim-to-Real Transfer
 
 A reinforcement learning framework for training bipedal humanoid robots to walk, combining **MuJoCo** simulation with **ROS 2 Humble** deployment pipelines. Trained policies transfer from simulation to real hardware via domain randomization and system identification.
 
+![XBot-L walking in MuJoCo](images/mujoco_walking.png)
+
+![Unitree H1 in RViz2](images/image.png)
+
 ---
 
 ## Overview
@@ -309,8 +313,6 @@ source install/setup.bash
 
 ros2 launch h1_description display.launch.py
 ```
-
-![Unitree H1 in RViz2](images/image.png)
 
 ### 3. Test Berkeley Humanoid
 
