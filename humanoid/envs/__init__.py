@@ -31,12 +31,18 @@
 
 
 from humanoid import LEGGED_GYM_ROOT_DIR, LEGGED_GYM_ENVS_DIR
-from .base.legged_robot import LeggedRobot
 
 from .custom.humanoid_config import XBotLCfg, XBotLCfgPPO
-from .custom.humanoid_env import XBotLFreeEnv
 
-from humanoid.utils.task_registry import task_registry
+# The Isaac Gym training path (LeggedRobot, XBotLFreeEnv, task_registry
+# registration) requires the discontinued `isaacgym` package. Keep it
+# optional so config classes like XBotLCfg stay importable (e.g. by
+# humanoid/scripts/sim2sim.py) on machines without Isaac Gym installed.
+try:
+    from .base.legged_robot import LeggedRobot
+    from .custom.humanoid_env import XBotLFreeEnv
+    from humanoid.utils.task_registry import task_registry
 
-
-task_registry.register( "humanoid_ppo", XBotLFreeEnv, XBotLCfg(), XBotLCfgPPO() )
+    task_registry.register("humanoid_ppo", XBotLFreeEnv, XBotLCfg(), XBotLCfgPPO())
+except ImportError:
+    pass

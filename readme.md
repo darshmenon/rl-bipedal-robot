@@ -1,4 +1,4 @@
-proepr# Humanoid RL — Bipedal Locomotion with Sim-to-Real Transfer
+# Humanoid RL — Bipedal Locomotion with Sim-to-Real Transfer
 
 A reinforcement learning framework for training bipedal humanoid robots to walk, combining **MuJoCo** simulation with **ROS 2 Humble** deployment pipelines. Trained policies transfer from simulation to real hardware via domain randomization and system identification.
 
@@ -107,6 +107,14 @@ python humanoid/scripts/train.py --task humanoid_ppo --run_name v1 --headless --
 ```
 
 Training runs with parallel environments. Policy checkpoints are saved to `logs/`.
+
+`train.py` requires Isaac Gym, which is discontinued and may not be installable on newer setups. `humanoid/scripts/train_mujoco.py` is an Isaac-Gym-free alternative that trains the same XBot-L model directly in MuJoCo with stable-baselines3 PPO:
+
+```bash
+python humanoid/scripts/train_mujoco.py --run_name v1 --num_envs 16 --total_timesteps 2000000
+```
+
+Exported policies from either path are loadable by `sim2sim.py`.
 
 ### 4. Visualize & Export the Policy
 
