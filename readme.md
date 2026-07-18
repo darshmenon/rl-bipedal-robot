@@ -299,6 +299,19 @@ Important note:
 
 The upstream Unitree stack is aimed at ROS 1 and classic Gazebo, not the local ROS 2 Gazebo Sim workspace in this repo.
 
+For a ROS 2 display, a wrapper package is included at `ros2_ws/src/h1_description`:
+
+```bash
+cd ros2_ws
+source /opt/ros/humble/setup.bash
+colcon build --packages-select h1_description --symlink-install
+source install/setup.bash
+
+ros2 launch h1_description display.launch.py
+```
+
+![Unitree H1 in RViz2](images/image.png)
+
 ### 3. Test Berkeley Humanoid
 
 The Berkeley package is imported under:
