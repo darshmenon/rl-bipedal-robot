@@ -1,17 +1,11 @@
 #!/bin/bash
-# Script to start RL training
+# Script to start RL training (MuJoCo-native path; see train_mujoco.py docstring
+# for why this replaces the discontinued Isaac Gym path in humanoid/scripts/train.py)
+set -e
 
-# Activate Python virtual environment
-source /home/darsh/rl-bipedal-walking/venv/bin/activate
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export PYTHONPATH="$REPO_ROOT:$PYTHONPATH"
 
-# Add project to Python path
-export PYTHONPATH="/home/darsh/rl-bipedal-walking/src:$PYTHONPATH"
-
-# Source ROS2
-source /opt/ros/humble/setup.bash
-source /home/darsh/rl-bipedal-walking/ros2_ws/install/setup.bash
-
-# Start training
 echo "Starting RL training..."
-cd /home/darsh/rl-bipedal-walking
-python src/rl_bipedal_walking/training/train_walker.py --episodes 1000
+cd "$REPO_ROOT"
+python humanoid/scripts/train_mujoco.py --run_name v1 --num_envs 16 --total_timesteps 2000000 "$@"

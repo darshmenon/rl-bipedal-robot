@@ -1,36 +1,17 @@
 #!/bin/bash
-# Script to test trained RL policy
+# Script to sim-to-sim validate the most recently exported policy in MuJoCo
+set -e
 
-# Activate Python virtual environment
-source /home/darsh/rl-bipedal-walking/venv/bin/activate
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export PYTHONPATH="$REPO_ROOT:$PYTHONPATH"
 
-# Add project to Python path
-export PYTHONPATH="/home/darsh/rl-bipedal-walking/src:$PYTHONPATH"
+LATEST_POLICY=$(ls -t "$REPO_ROOT"/logs/*/exported/policies/policy_*.pt 2>/dev/null | head -1)
 
-# Source ROS2
-source /opt/ros/humble/setup.bash
-source /home/darsh/rl-bipedal-walking/ros2_ws/install/setup.bash
-
-# Find the latest training results directory
-LATEST_RESULTS=$(ls -td /home/darsh/rl-bipedal-walking/training_results_* 2>/dev/null | head -1)
-
-if [ -z "$LATEST_RESULTS" ]; then
-    echo "No training results found!"
+if [ -z "$LATEST_POLICY" ]; then
+    echo "No exported policy found under logs/*/exported/policies/"
     exit 1
 fi
 
-MODEL_PATH="$LATEST_RESULTS/models/best_model.pth"
-
-if [ ! -f "$MODEL_PATH" ]; then
-    echo "Model not found at $MODEL_PATH"
-    exit 1
-fi
-
-echo "Testing policy from: $MODEL_PATH"
-echo "Running 10 evaluation episodes..."
-
-cd /home/darsh/rl-bipedal-walking
-python src/rl_bipedal_walking/evaluation/evaluate_model.py \
-  --model "$MODEL_PATH" \
-  --episodes 10 \
-  --save-plots "${LATEST_RESULTS}/evaluation_results"
+echo "Validating policy: $LATEST_POLICY"
+cd "$REPO_ROOT"
+python humanoid/scripts/sim2sim.py --load_model "$LATEST_POLICY" "$@"

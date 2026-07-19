@@ -50,11 +50,6 @@ rl-bipedal-walking/
 │           ├── urdf/                 # Robot description
 │           ├── launch/               # Gazebo Sim launch files
 │           └── config/               # RViz configs
-├── src/                              # Additional Gym environments
-│   └── rl_bipedal_walking/
-│       ├── environments/             # Gymnasium-compatible wrappers
-│       ├── agents/                   # PPO / SAC agents
-│       └── training/                 # Training scripts
 ├── scripts/                          # Shell helper scripts
 ├── logs/                             # Training run logs & exported policies
 ├── setup.py                          # Package install
