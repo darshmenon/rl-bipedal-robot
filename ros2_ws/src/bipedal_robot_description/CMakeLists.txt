@@ -19,7 +19,7 @@ install(DIRECTORY
 
 # Install Python executables
 install(PROGRAMS
-  scripts/robot_controller.py/robot_controller.py
+  scripts/robot_controller.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

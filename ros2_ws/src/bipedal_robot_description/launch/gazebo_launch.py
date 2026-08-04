@@ -1,6 +1,6 @@
 import os
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, TimerAction
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
@@ -32,7 +32,11 @@ def generate_launch_description():
     # Load robot description
     urdf_file = os.path.join(pkg_bipedal_description, 'urdf', 'bipedal.urdf')
     with open(urdf_file, 'r') as f:
-        robot_description = f.read()
+        # bipedal.urdf is plain (non-xacro) XML, so the $(find ...) the
+        # gz_ros2_control plugin block uses to locate ros2_controllers.yaml
+        # needs to be resolved here instead of by a xacro processor.
+        robot_description = f.read().replace(
+            '$(find bipedal_robot_description)', pkg_bipedal_description)
 
     robot_state_publisher = Node(
         package='robot_state_publisher',
@@ -79,6 +83,26 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration('joint_state_gui'))
     )
 
+    # gz_ros2_control spawns its own controller_manager inside Gazebo once the
+    # robot is created; the spawners need to wait for that to come up.
+    controller_spawners = TimerAction(
+        period=5.0,
+        actions=[
+            Node(
+                package='controller_manager',
+                executable='spawner',
+                arguments=['joint_state_broadcaster'],
+                output='screen'
+            ),
+            Node(
+                package='controller_manager',
+                executable='spawner',
+                arguments=['leg_position_controller'],
+                output='screen'
+            ),
+        ]
+    )
+
     return LaunchDescription([
         world_file_arg,
         use_sim_time_arg,
@@ -86,5 +110,6 @@ def generate_launch_description():
         gz_sim,
         robot_state_publisher,
         spawn_robot,
-        joint_state_publisher_gui
+        joint_state_publisher_gui,
+        controller_spawners
     ])

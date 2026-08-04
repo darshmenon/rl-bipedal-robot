@@ -61,7 +61,7 @@ rl-bipedal-walking/
 ## Current Status
 
 - The main RL stack in `humanoid/` is the primary training code in this repo today.
-- The ROS 2 workspace in `ros2_ws/` can spawn the current humanoid model in Gazebo Sim, but it is not a full `ros2_control` stack yet.
+- The ROS 2 workspace in `ros2_ws/` can spawn the current humanoid model in Gazebo Sim with a working `ros2_control` + `gz_ros2_control` controller stack, though its placeholder URDF doesn't yet match the trained XBot-L model (see "ROS 2 Integration" below).
 - Official external humanoid sources are mirrored under `humanoid_descriptions/` so you can swap in stronger robot descriptions without adding nested Git repos.
 
 ---
@@ -234,11 +234,18 @@ The `ros2_ws` provides deployment infrastructure on ROS 2 Humble:
 - **Joint state publisher** and `robot_state_publisher`
 - **RViz** visualization config
 - Scaffolding for **policy inference node** (trained model → joint torque commands)
-- A lightweight spawn path for testing descriptions before integrating controllers
+- `ros2_control` wired into `bipedal_robot_description` via the `gz_ros2_control` Gazebo Sim plugin, driving the 6 leg joints (`left_hip_joint`, `left_knee_joint`, `left_ankle_joint` + right side) through a `position_controllers/JointGroupPositionController`
+
+Both `spawn_robot.launch.py` and `gazebo_launch.py` bring up `controller_manager` and spawn `joint_state_broadcaster` + `leg_position_controller` automatically. Send position commands with:
+
+```bash
+ros2 topic pub /leg_position_controller/commands std_msgs/msg/Float64MultiArray \
+  "{data: [0.1, -0.3, 0.0, -0.1, -0.3, 0.0]}"
+```
 
 Current limitation:
 
-`ros2_control` is not fully wired into the local `bipedal_robot_description` package yet, so the ROS workspace is currently better suited for description validation and spawn testing than for full controller bring-up.
+The local `bipedal_robot_description` URDF is a simple 6-DOF placeholder (hip/knee/ankle per leg) used for spawn and controller-bringup testing — it does not match the 12-DOF XBot-L model actually trained in `humanoid/`. Swapping in a matching XBot-L or Unitree URDF (see "Adding a New Robot" below) is the remaining step before a trained policy can drive this ROS 2 workspace end to end.
 
 ```bash
 # Key ROS 2 topics

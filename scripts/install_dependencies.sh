@@ -16,6 +16,8 @@ sudo apt install -y \
     ros-humble-rviz2 \
     ros-humble-xacro \
     ros-humble-tf-transformations \
+    ros-humble-gz-ros2-control \
+    ros-humble-ros2-controllers \
     python3-pip \
     python3-venv
 
