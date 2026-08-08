@@ -103,6 +103,20 @@ def generate_launch_description():
         ]
     )
 
+    # Walking pattern generator: drives leg_position_controller once it's up.
+    walking_pattern_generator = TimerAction(
+        period=6.0,
+        actions=[
+            Node(
+                package='bipedal_robot_description',
+                executable='robot_controller.py',
+                name='walking_pattern_generator',
+                parameters=[{'use_sim_time': LaunchConfiguration('use_sim_time')}],
+                output='screen'
+            ),
+        ]
+    )
+
     return LaunchDescription([
         world_file_arg,
         use_sim_time_arg,
@@ -111,5 +125,6 @@ def generate_launch_description():
         robot_state_publisher,
         spawn_robot,
         joint_state_publisher_gui,
-        controller_spawners
+        controller_spawners,
+        walking_pattern_generator
     ])
