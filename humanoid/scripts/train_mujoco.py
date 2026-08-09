@@ -29,6 +29,7 @@ import torch
 import torch.nn as nn
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
+from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.callbacks import CheckpointCallback
 
 from humanoid import LEGGED_GYM_ROOT_DIR
@@ -37,7 +38,7 @@ from humanoid.mujoco_rl.mujoco_humanoid_env import MujocoHumanoidEnv, NUM_OBS
 
 def make_env(xml_path):
     def _init():
-        return MujocoHumanoidEnv(xml_path)
+        return Monitor(MujocoHumanoidEnv(xml_path))
     return _init
 
 
@@ -81,14 +82,14 @@ def main():
         model = PPO(
             'MlpPolicy', env,
             policy_kwargs=policy_kwargs,
-            learning_rate=1e-5,
+            learning_rate=3e-4,
             gamma=0.994,
             gae_lambda=0.9,
             clip_range=0.2,
             ent_coef=0.001,
-            n_steps=60,
-            batch_size=60 * args.num_envs // 4,
-            n_epochs=2,
+            n_steps=200,
+            batch_size=200 * args.num_envs // 4,
+            n_epochs=5,
             tensorboard_log=log_dir,
             verbose=1,
             # A tiny MLP policy gains nothing from GPU, and SB3's default
