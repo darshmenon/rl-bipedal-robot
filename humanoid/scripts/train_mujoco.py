@@ -82,10 +82,11 @@ def main():
         model = PPO(
             'MlpPolicy', env,
             policy_kwargs=policy_kwargs,
-            learning_rate=3e-4,
+            learning_rate=1e-4,
             gamma=0.994,
             gae_lambda=0.9,
             clip_range=0.2,
+            target_kl=0.02,
             ent_coef=0.001,
             n_steps=200,
             batch_size=200 * args.num_envs // 4,
