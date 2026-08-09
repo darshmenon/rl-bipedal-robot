@@ -98,6 +98,11 @@ def run_mujoco(policy, cfg):
     model = mujoco.MjModel.from_xml_path(cfg.sim_config.mujoco_model_path)
     model.opt.timestep = cfg.sim_config.dt
     data = mujoco.MjData(model)
+    # Match MujocoHumanoidEnv.reset(): the MJCF has no standing keyframe, so
+    # without this the robot starts at qpos z=0 and immediately falls through
+    # the floor before the policy gets a chance to act.
+    data.qpos[2] = 0.95
+    data.qpos[3] = 1.0
     mujoco.mj_step(model, data)
     viewer = mujoco_viewer.MujocoViewer(model, data)
 
