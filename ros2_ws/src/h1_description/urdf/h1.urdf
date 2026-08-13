@@ -166,10 +166,14 @@
         <color rgba="0.1 0.1 0.1 1"/>
       </material>
     </visual>
+    <!-- Widened from the visual mesh's actual 0.03m width for standing
+         stability: a 3cm-wide sole gives almost no lateral support polygon
+         for a robot with no active balance control, just per-joint PD hold.
+         Collision-only change, doesn't affect the rendered mesh. -->
     <collision>
       <origin xyz="0.05 0.0 -0.05" rpy="0 0 0"/>
       <geometry>
-        <box size="0.28 0.03 0.024"/>
+        <box size="0.28 0.10 0.024"/>
       </geometry>
     </collision>
   </link>
@@ -311,10 +315,11 @@
         <color rgba="0.1 0.1 0.1 1"/>
       </material>
     </visual>
+    <!-- Widened for standing stability, see left_ankle_link's collision. -->
     <collision>
       <origin xyz="0.05 0.0 -0.05" rpy="0 0 0"/>
       <geometry>
-        <box size="0.28 0.03 0.024"/>
+        <box size="0.28 0.10 0.024"/>
       </geometry>
     </collision>
   </link>
@@ -681,5 +686,315 @@
     <child link="mid360_link"/>
     <axis xyz="0 0 0"/>
   </joint>
+
+  <!-- High friction on both soles: undefined friction plus a narrow foot
+       (see the ankle collision comments above) let the robot slide out from
+       under itself before any PD gain tuning could help. -->
+  <gazebo reference="left_ankle_link">
+    <collision>
+      <surface>
+        <friction>
+          <ode>
+            <mu>1.2</mu>
+            <mu2>1.2</mu2>
+          </ode>
+        </friction>
+      </surface>
+    </collision>
+  </gazebo>
+  <gazebo reference="right_ankle_link">
+    <collision>
+      <surface>
+        <friction>
+          <ode>
+            <mu>1.2</mu>
+            <mu2>1.2</mu2>
+          </ode>
+        </friction>
+      </surface>
+    </collision>
+  </gazebo>
+
+  <!-- Joint position control: native gz-sim JointPositionController per joint,
+       same fix as bipedal_robot_description/urdf/bipedal.urdf: gz_ros2_control
+       is ABI-broken against this system's default Gazebo Harmonic (gz-sim8).
+       Commands arrive over each joint's <topic> below, bridged by
+       ros_gz_bridge. (The plugin's own default topic has an axis-index
+       segment starting with a digit, which is a valid gz-transport name but
+       an invalid ROS 2 one, see standing_pose_publisher.py's docstring.)
+
+       Leg joint p_gain/d_gain/cmd_max match unitree_rl_gym's
+       deploy/deploy_mujoco/configs/h1.yaml kps/kds and H1's real effort
+       limits exactly, so Gazebo's joint tracking compliance matches what
+       the pretrained walk policy (h1_rl_walk_publisher.py, controller:=walk)
+       was trained against. -->
+  <gazebo>
+    <plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher"/>
+
+    <!-- Ground-truth pelvis pose/twist for standing_pose_publisher.py's tilt
+         feedback, a real rclpy subscription callback via this bridged
+         topic, not the subprocess-polling `gz topic -e` it used to fall
+         back on (spawn overhead alone could exceed its own 20ms timeout). -->
+    <plugin filename="gz-sim-odometry-publisher-system" name="gz::sim::systems::OdometryPublisher">
+      <odom_frame>odom</odom_frame>
+      <robot_base_frame>pelvis</robot_base_frame>
+      <!-- Publishes on global /odometry in this gz-sim version; the launch
+           file bridges that topic and remaps it to /model/h1/odometry. -->
+      <odom_topic>odometry</odom_topic>
+      <odom_publish_frequency>100</odom_publish_frequency>
+      <dimensions>3</dimensions>
+    </plugin>
+
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>left_hip_yaw_joint</joint_name>
+      <topic>/model/h1/joint/left_hip_yaw_joint/cmd_pos</topic>
+      <p_gain>150</p_gain>
+      <i_gain>0</i_gain>
+      <d_gain>2</d_gain>
+      <i_max>0</i_max>
+      <i_min>-0</i_min>
+      <cmd_max>200</cmd_max>
+      <cmd_min>-200</cmd_min>
+    </plugin>
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>left_hip_roll_joint</joint_name>
+      <topic>/model/h1/joint/left_hip_roll_joint/cmd_pos</topic>
+      <p_gain>150</p_gain>
+      <i_gain>0</i_gain>
+      <d_gain>2</d_gain>
+      <i_max>0</i_max>
+      <i_min>-0</i_min>
+      <cmd_max>200</cmd_max>
+      <cmd_min>-200</cmd_min>
+    </plugin>
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>left_hip_pitch_joint</joint_name>
+      <topic>/model/h1/joint/left_hip_pitch_joint/cmd_pos</topic>
+      <p_gain>150</p_gain>
+      <i_gain>0</i_gain>
+      <d_gain>2</d_gain>
+      <i_max>0</i_max>
+      <i_min>-0</i_min>
+      <cmd_max>200</cmd_max>
+      <cmd_min>-200</cmd_min>
+    </plugin>
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>left_knee_joint</joint_name>
+      <topic>/model/h1/joint/left_knee_joint/cmd_pos</topic>
+      <p_gain>200</p_gain>
+      <i_gain>0</i_gain>
+      <d_gain>4</d_gain>
+      <i_max>0</i_max>
+      <i_min>-0</i_min>
+      <cmd_max>300</cmd_max>
+      <cmd_min>-300</cmd_min>
+    </plugin>
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>left_ankle_joint</joint_name>
+      <topic>/model/h1/joint/left_ankle_joint/cmd_pos</topic>
+      <p_gain>40</p_gain>
+      <i_gain>0</i_gain>
+      <d_gain>2</d_gain>
+      <i_max>0</i_max>
+      <i_min>-0</i_min>
+      <cmd_max>40</cmd_max>
+      <cmd_min>-40</cmd_min>
+    </plugin>
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>right_hip_yaw_joint</joint_name>
+      <topic>/model/h1/joint/right_hip_yaw_joint/cmd_pos</topic>
+      <p_gain>150</p_gain>
+      <i_gain>0</i_gain>
+      <d_gain>2</d_gain>
+      <i_max>0</i_max>
+      <i_min>-0</i_min>
+      <cmd_max>200</cmd_max>
+      <cmd_min>-200</cmd_min>
+    </plugin>
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>right_hip_roll_joint</joint_name>
+      <topic>/model/h1/joint/right_hip_roll_joint/cmd_pos</topic>
+      <p_gain>150</p_gain>
+      <i_gain>0</i_gain>
+      <d_gain>2</d_gain>
+      <i_max>0</i_max>
+      <i_min>-0</i_min>
+      <cmd_max>200</cmd_max>
+      <cmd_min>-200</cmd_min>
+    </plugin>
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>right_hip_pitch_joint</joint_name>
+      <topic>/model/h1/joint/right_hip_pitch_joint/cmd_pos</topic>
+      <p_gain>150</p_gain>
+      <i_gain>0</i_gain>
+      <d_gain>2</d_gain>
+      <i_max>0</i_max>
+      <i_min>-0</i_min>
+      <cmd_max>200</cmd_max>
+      <cmd_min>-200</cmd_min>
+    </plugin>
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>right_knee_joint</joint_name>
+      <topic>/model/h1/joint/right_knee_joint/cmd_pos</topic>
+      <p_gain>200</p_gain>
+      <i_gain>0</i_gain>
+      <d_gain>4</d_gain>
+      <i_max>0</i_max>
+      <i_min>-0</i_min>
+      <cmd_max>300</cmd_max>
+      <cmd_min>-300</cmd_min>
+    </plugin>
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>right_ankle_joint</joint_name>
+      <topic>/model/h1/joint/right_ankle_joint/cmd_pos</topic>
+      <p_gain>40</p_gain>
+      <i_gain>0</i_gain>
+      <d_gain>2</d_gain>
+      <i_max>0</i_max>
+      <i_min>-0</i_min>
+      <cmd_max>40</cmd_max>
+      <cmd_min>-40</cmd_min>
+    </plugin>
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>torso_joint</joint_name>
+      <topic>/model/h1/joint/torso_joint/cmd_pos</topic>
+      <p_gain>250</p_gain>
+      <i_gain>0</i_gain>
+      <d_gain>5</d_gain>
+      <i_max>0</i_max>
+      <i_min>-0</i_min>
+      <cmd_max>200</cmd_max>
+      <cmd_min>-200</cmd_min>
+    </plugin>
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>left_shoulder_pitch_joint</joint_name>
+      <topic>/model/h1/joint/left_shoulder_pitch_joint/cmd_pos</topic>
+      <p_gain>100</p_gain>
+      <i_gain>0</i_gain>
+      <d_gain>3</d_gain>
+      <i_max>0</i_max>
+      <i_min>-0</i_min>
+      <cmd_max>40</cmd_max>
+      <cmd_min>-40</cmd_min>
+    </plugin>
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>left_shoulder_roll_joint</joint_name>
+      <topic>/model/h1/joint/left_shoulder_roll_joint/cmd_pos</topic>
+      <p_gain>100</p_gain>
+      <i_gain>0</i_gain>
+      <d_gain>3</d_gain>
+      <i_max>0</i_max>
+      <i_min>-0</i_min>
+      <cmd_max>40</cmd_max>
+      <cmd_min>-40</cmd_min>
+    </plugin>
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>left_shoulder_yaw_joint</joint_name>
+      <topic>/model/h1/joint/left_shoulder_yaw_joint/cmd_pos</topic>
+      <p_gain>30</p_gain>
+      <i_gain>0</i_gain>
+      <d_gain>1.5</d_gain>
+      <i_max>0</i_max>
+      <i_min>-0</i_min>
+      <cmd_max>18</cmd_max>
+      <cmd_min>-18</cmd_min>
+    </plugin>
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>left_elbow_joint</joint_name>
+      <topic>/model/h1/joint/left_elbow_joint/cmd_pos</topic>
+      <p_gain>30</p_gain>
+      <i_gain>0</i_gain>
+      <d_gain>1.5</d_gain>
+      <i_max>0</i_max>
+      <i_min>-0</i_min>
+      <cmd_max>18</cmd_max>
+      <cmd_min>-18</cmd_min>
+    </plugin>
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>right_shoulder_pitch_joint</joint_name>
+      <topic>/model/h1/joint/right_shoulder_pitch_joint/cmd_pos</topic>
+      <p_gain>100</p_gain>
+      <i_gain>0</i_gain>
+      <d_gain>3</d_gain>
+      <i_max>0</i_max>
+      <i_min>-0</i_min>
+      <cmd_max>40</cmd_max>
+      <cmd_min>-40</cmd_min>
+    </plugin>
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>right_shoulder_roll_joint</joint_name>
+      <topic>/model/h1/joint/right_shoulder_roll_joint/cmd_pos</topic>
+      <p_gain>100</p_gain>
+      <i_gain>0</i_gain>
+      <d_gain>3</d_gain>
+      <i_max>0</i_max>
+      <i_min>-0</i_min>
+      <cmd_max>40</cmd_max>
+      <cmd_min>-40</cmd_min>
+    </plugin>
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>right_shoulder_yaw_joint</joint_name>
+      <topic>/model/h1/joint/right_shoulder_yaw_joint/cmd_pos</topic>
+      <p_gain>30</p_gain>
+      <i_gain>0</i_gain>
+      <d_gain>1.5</d_gain>
+      <i_max>0</i_max>
+      <i_min>-0</i_min>
+      <cmd_max>18</cmd_max>
+      <cmd_min>-18</cmd_min>
+    </plugin>
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>right_elbow_joint</joint_name>
+      <topic>/model/h1/joint/right_elbow_joint/cmd_pos</topic>
+      <p_gain>30</p_gain>
+      <i_gain>0</i_gain>
+      <d_gain>1.5</d_gain>
+      <i_max>0</i_max>
+      <i_min>-0</i_min>
+      <cmd_max>18</cmd_max>
+      <cmd_min>-18</cmd_min>
+    </plugin>
+  </gazebo>
+
+  <!-- 3D lidar: Unitree Mid-360 mount point, 16-channel VLP-16-style gpu_lidar
+       (same params as quadruped-dog-rl's proven lidar3d sensor for Go2's RTAB-Map
+       pipeline). mid360_joint already bakes in the mount tilt, so the sensor pose
+       here is identity. Needs the Sensors system plugin loaded at the world level
+       (see worlds/h1_lidar_world.sdf; ros_gz_sim's stock empty.sdf doesn't have it).
+  -->
+  <gazebo reference="mid360_link">
+    <sensor name="mid360_lidar" type="gpu_lidar">
+      <pose>0 0 0 0 0 0</pose>
+      <always_on>true</always_on>
+      <visualize>false</visualize>
+      <update_rate>10</update_rate>
+      <topic>points</topic>
+      <gz_frame_id>mid360_link</gz_frame_id>
+      <lidar>
+        <scan>
+          <horizontal>
+            <samples>1800</samples>
+            <min_angle>-3.14159</min_angle>
+            <max_angle>3.14159</max_angle>
+          </horizontal>
+          <vertical>
+            <samples>16</samples>
+            <min_angle>-0.1745</min_angle>
+            <max_angle>0.1745</max_angle>
+          </vertical>
+        </scan>
+        <range>
+          <min>0.3</min>
+          <max>30.0</max>
+          <resolution>0.001</resolution>
+        </range>
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.01</stddev>
+        </noise>
+      </lidar>
+    </sensor>
+  </gazebo>
 
 </robot>

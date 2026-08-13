@@ -61,7 +61,7 @@ rl-bipedal-walking/
 ## Current Status
 
 - The main RL stack in `humanoid/` is the primary training code in this repo today.
-- The ROS 2 workspace in `ros2_ws/` can spawn the current humanoid model in Gazebo Sim with a working `ros2_control` + `gz_ros2_control` controller stack, though its placeholder URDF doesn't yet match the trained XBot-L model (see "ROS 2 Integration" below).
+- The ROS 2 workspace in `ros2_ws/` can spawn the toy biped and local H1 wrapper in Gazebo Sim using native Gazebo Sim joint controllers bridged through ROS-GZ topics. The toy biped placeholder URDF doesn't yet match the trained XBot-L model (see "ROS 2 Integration" below).
 - Official external humanoid sources are mirrored under `humanoid_descriptions/` so you can swap in stronger robot descriptions without adding nested Git repos.
 
 ---
@@ -97,59 +97,47 @@ pip install -r requirements.txt
 ### 3. Train a Locomotion Policy
 
 ```bash
-# PPO training with 4096 parallel environments
 python humanoid/scripts/train.py --task humanoid_ppo --run_name v1 --headless --num_envs 4096
 ```
 
-Training runs with parallel environments. Policy checkpoints are saved to `logs/`.
-
-`train.py` requires Isaac Gym, which is discontinued and may not be installable on newer setups. `humanoid/scripts/train_mujoco.py` is an Isaac-Gym-free alternative that trains the same XBot-L model directly in MuJoCo with stable-baselines3 PPO:
+Checkpoints save to `logs/`. `train.py` needs Isaac Gym (discontinued, may not
+install on newer setups) — `train_mujoco.py` is an Isaac-Gym-free alternative,
+same XBot-L model, MuJoCo + stable-baselines3 PPO:
 
 ```bash
 python humanoid/scripts/train_mujoco.py --run_name v1 --num_envs 16 --total_timesteps 2000000
 ```
 
-Exported policies from either path are loadable by `sim2sim.py`.
-
 ### 4. Visualize & Export the Policy
 
 ```bash
-# Load trained policy and export JIT model
 python humanoid/scripts/play.py --task humanoid_ppo --run_name v1
 ```
 
-This exports a JIT-compiled policy to `logs/<experiment>/exported/policies/` for deployment.
+Exports a JIT-compiled policy to `logs/<experiment>/exported/policies/`.
 
 ### 5. Sim-to-Sim: Transfer to MuJoCo
 
 ```bash
-# Run trained policy in MuJoCo for validation
 python humanoid/scripts/sim2sim.py --load_model logs/XBot_ppo/exported/policies/policy_1.pt
-
-# With terrain
-python humanoid/scripts/sim2sim.py --load_model logs/XBot_ppo/exported/policies/policy_1.pt --terrain
+python humanoid/scripts/sim2sim.py --load_model logs/XBot_ppo/exported/policies/policy_1.pt --terrain  # with terrain
 ```
 
-Validates the trained policy under MuJoCo physics before deploying to hardware.
+Validates the policy under MuJoCo physics before hardware deployment.
 
 ### 6. ROS 2 + Gazebo Sim
 
 ```bash
-# Build ROS 2 workspace
 cd ros2_ws
 source /opt/ros/humble/setup.bash
 colcon build --symlink-install
 source install/setup.bash
 
-# Launch Gazebo Sim with humanoid robot
 ros2 launch bipedal_robot_description spawn_robot.launch.py
 ```
 
-To launch the alternate Gazebo entrypoint:
-
-```bash
-ros2 launch bipedal_robot_description gazebo_launch.py
-```
+See "Testing Humanoids In Gazebo" below for the full set of launch files
+(toy biped, H1, SLAM) and current status.
 
 ---
 
@@ -227,32 +215,29 @@ This catches policy brittleness and physics mismatches before real hardware depl
 
 ## ROS 2 Integration
 
-The `ros2_ws` provides deployment infrastructure on ROS 2 Humble:
+`ros2_ws` provides deployment infrastructure on ROS 2 Humble: URDF/SDF
+descriptions, Gazebo Sim launch files with ROS-GZ bridges, `robot_state_publisher`,
+RViz configs, and scaffolding for a policy-inference node. Both the toy biped
+and H1 URDFs use native Gazebo Sim `JointPositionController` plugins (one
+`cmd_pos` topic per joint), not `gz_ros2_control`.
 
-- **URDF/SDF** humanoid robot description
-- **Gazebo Sim** launch files with ROS-GZ bridge
-- **Joint state publisher** and `robot_state_publisher`
-- **RViz** visualization config
-- Scaffolding for **policy inference node** (trained model → joint torque commands)
-- `ros2_control` wired into `bipedal_robot_description` via the `gz_ros2_control` Gazebo Sim plugin, driving the 6 leg joints (`left_hip_joint`, `left_knee_joint`, `left_ankle_joint` + right side) through a `position_controllers/JointGroupPositionController`
-
-Both `spawn_robot.launch.py` and `gazebo_launch.py` bring up `controller_manager` and spawn `joint_state_broadcaster` + `leg_position_controller` automatically. Send position commands with:
-
-```bash
-ros2 topic pub /leg_position_controller/commands std_msgs/msg/Float64MultiArray \
-  "{data: [0.1, -0.3, 0.0, -0.1, -0.3, 0.0]}"
-```
-
-Current limitation:
-
-The local `bipedal_robot_description` URDF is a simple 6-DOF placeholder (hip/knee/ankle per leg) used for spawn and controller-bringup testing — it does not match the 12-DOF XBot-L model actually trained in `humanoid/`. Swapping in a matching XBot-L or Unitree URDF (see "Adding a New Robot" below) is the remaining step before a trained policy can drive this ROS 2 workspace end to end.
+`spawn_robot.launch.py` starts Gazebo, spawns the toy biped, and bridges
+`/joint_states` + one `cmd_pos` topic per leg joint. `gazebo_launch.py` does
+the same plus starts `robot_controller.py`, an open-loop walking-pattern
+generator driven by `/cmd_vel`:
 
 ```bash
-# Key ROS 2 topics
-/joint_states          # sensor_msgs/JointState
-/odom                  # nav_msgs/Odometry
-/cmd_vel               # geometry_msgs/Twist
+# Direct joint command
+ros2 topic pub --once /model/bipedal_robot/joint/left_hip_joint/cmd_pos std_msgs/msg/Float64 "{data: 0.1}"
+
+# Drive the walking generator
+ros2 topic pub /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}, angular: {z: 0.0}}"
 ```
+
+**Limitation:** the toy biped is a 6-DOF placeholder (hip/knee/ankle per leg),
+not the 12-DOF XBot-L model actually trained in `humanoid/` — swapping in a
+matching URDF (see "Adding a New Robot") is what's needed before a trained
+policy can drive this workspace end to end.
 
 ---
 
@@ -265,7 +250,7 @@ There are two different simulation paths in this repo:
 
 ### 1. Test the local ROS 2 humanoid
 
-Use this when you want to validate the repo's current ROS 2 spawn flow:
+Use these when you want to validate the repo's current ROS 2 toy-biped flow:
 
 ```bash
 cd ros2_ws
@@ -276,44 +261,17 @@ source install/setup.bash
 ros2 launch bipedal_robot_description spawn_robot.launch.py
 ```
 
-Alternate Gazebo entrypoint:
+Other toy-biped launch files:
 
 ```bash
 ros2 launch bipedal_robot_description gazebo_launch.py
+ros2 launch bipedal_robot_description rviz_display.launch.py
 ```
 
-### 2. Test imported Unitree humanoids
+### 2. Test the local ROS 2 H1 wrapper
 
-The imported Unitree packages live in:
-
-- `humanoid_descriptions/ros/unitree_ros/robots/g1_description`
-- `humanoid_descriptions/ros/unitree_ros/robots/h1_description`
-- `humanoid_descriptions/ros/unitree_ros/robots/h1_2_description`
-- `humanoid_descriptions/ros/unitree_ros/robots/h2_description`
-- `humanoid_descriptions/ros/unitree_ros/robots/r1_description`
-- `humanoid_descriptions/ros/unitree_ros/robots/r1_air_description`
-
-These are ROS 1 packages. Start with the one that already includes a direct Gazebo launch:
-
-```bash
-cd humanoid_descriptions/ros/unitree_ros
-# inside a ROS 1 catkin workspace
-roslaunch h1_description gazebo.launch
-```
-
-For quick visual checks without Gazebo:
-
-```bash
-roslaunch h1_description display.launch
-```
-
-The imported `unitree_gazebo` and `unitree_controller` packages are also included for classic Gazebo and low-level controller experiments.
-
-Important note:
-
-The upstream Unitree stack is aimed at ROS 1 and classic Gazebo, not the local ROS 2 Gazebo Sim workspace in this repo.
-
-For a ROS 2 display, a wrapper package is included at `ros2_ws/src/h1_description`:
+`ros2_ws/src/h1_description` wraps the Unitree H1 description with Gazebo Sim
+launch files, a Mid-360 lidar sensor, and an experimental standing controller.
 
 ```bash
 cd ros2_ws
@@ -321,48 +279,36 @@ source /opt/ros/humble/setup.bash
 colcon build --packages-select h1_description --symlink-install
 source install/setup.bash
 
-ros2 launch h1_description display.launch.py
+ros2 launch h1_description display.launch.py        # RViz-only
+ros2 launch h1_description h1_gazebo.launch.py       # Gazebo + lidar + stand controller
+ros2 launch h1_description h1_gazebo.launch.py headless:=true
+ros2 launch h1_description h1_slam3d.launch.py       # + RTAB-Map 3D lidar SLAM
 ```
 
-### 3. Test Berkeley Humanoid
+**Status:** command bridge, `/joint_states` TF, wall-time stabilizer publishing,
+and odometry feedback are confirmed working. Standing is not: H1 topples within
+a few seconds despite high sim-only sagittal PD gains and saturated closed-loop
+tilt feedback, settling into a resting pose rather than standing. **SLAM works
+regardless** — confirmed building a real occupancy grid on `/map` from the
+Mid-360 lidar and ground-truth odometry, independent of the standing problem.
 
-The Berkeley package is imported under:
+### 3. Test imported Unitree humanoids
 
-- `humanoid_descriptions/urdf_only/berkeley_humanoid_description`
-
-Classic Gazebo test:
+ROS 1 packages under `humanoid_descriptions/ros/unitree_ros/robots/` (g1, h1,
+h1_2, h2, r1, r1_air descriptions), aimed at ROS 1 + classic Gazebo — **not**
+this repo's ROS 2 Gazebo Sim workspace. Use the local H1 wrapper above for
+ROS 2 testing; use these only inside a ROS 1 catkin workspace:
 
 ```bash
-# inside a ROS 1 catkin workspace
-roslaunch berkeley_humanoid_description empty_world.launch
+cd humanoid_descriptions/ros/unitree_ros
+roslaunch h1_description gazebo.launch   # classic Gazebo
+roslaunch h1_description display.launch  # RViz only
 ```
 
-Standalone URDF/RViz test:
+### 4. Test Berkeley, Booster, RobotEra models
 
-```bash
-roslaunch berkeley_humanoid_description standalone.launch
-```
-
-### 4. Test Booster and RobotEra models
-
-These imports are best treated as description sources first:
-
-- `humanoid_descriptions/urdf_only/booster_assets`
-- `humanoid_descriptions/urdf_only/robotera_models`
-
-Useful files include:
-
-- `humanoid_descriptions/urdf_only/booster_assets/robots/T1/T1_23dof.urdf`
-- `humanoid_descriptions/urdf_only/booster_assets/robots/K1/K1_22dof.urdf`
-- `humanoid_descriptions/urdf_only/robotera_models/star1`
-
-They do not yet come with a ready-to-run local ROS 2 spawn wrapper in this repo, so the usual next step is:
-
-1. Copy the chosen URDF and meshes into a ROS package
-2. Point `robot_state_publisher` at that URDF
-3. Spawn it with either `ros_gz_sim create` in ROS 2 or `gazebo_ros spawn_model` in ROS 1
-
-If you want, the next integration step is to replace `ros2_ws/src/bipedal_robot_description/urdf/bipedal.urdf` with one of these imported robots and add a dedicated launch package for it.
+- `humanoid_descriptions/urdf_only/berkeley_humanoid_description` — has ROS 1 launch files: `roslaunch berkeley_humanoid_description empty_world.launch` (Gazebo) or `standalone.launch` (RViz)
+- `humanoid_descriptions/urdf_only/booster_assets` (`robots/T1/T1_23dof.urdf`, `robots/K1/K1_22dof.urdf`) and `humanoid_descriptions/urdf_only/robotera_models/star1` — description-only, no spawn wrapper yet. To use: copy the URDF/meshes into a ROS package, point `robot_state_publisher` at it, spawn with `ros_gz_sim create` (ROS 2) or `gazebo_ros spawn_model` (ROS 1)
 
 ---
 

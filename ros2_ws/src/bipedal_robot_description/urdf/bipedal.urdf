@@ -446,46 +446,81 @@
     </inertial>
   </link>
 
-  <!-- ros2_control: expose the 6 leg joints for position control via gz_ros2_control -->
-  <ros2_control name="BipedalRobotSystem" type="system">
-    <hardware>
-      <plugin>gz_ros2_control/GazeboSimSystem</plugin>
-    </hardware>
-    <joint name="left_hip_joint">
-      <command_interface name="position"/>
-      <state_interface name="position"/>
-      <state_interface name="velocity"/>
-    </joint>
-    <joint name="left_knee_joint">
-      <command_interface name="position"/>
-      <state_interface name="position"/>
-      <state_interface name="velocity"/>
-    </joint>
-    <joint name="left_ankle_joint">
-      <command_interface name="position"/>
-      <state_interface name="position"/>
-      <state_interface name="velocity"/>
-    </joint>
-    <joint name="right_hip_joint">
-      <command_interface name="position"/>
-      <state_interface name="position"/>
-      <state_interface name="velocity"/>
-    </joint>
-    <joint name="right_knee_joint">
-      <command_interface name="position"/>
-      <state_interface name="position"/>
-      <state_interface name="velocity"/>
-    </joint>
-    <joint name="right_ankle_joint">
-      <command_interface name="position"/>
-      <state_interface name="position"/>
-      <state_interface name="velocity"/>
-    </joint>
-  </ros2_control>
-
+  <!-- Joint position control: native gz-sim JointPositionController per joint.
+       gz_ros2_control's plugin is built against libignition-gazebo6 (Fortress)
+       and fails to load under this system's default Gazebo Harmonic (gz-sim8)
+       gz sim runs ("GzPluginHook" symbol missing), so controller_manager never
+       comes up. JointPositionController ships with libgz-sim8-plugins itself,
+       so there's no ABI mismatch; commands come in over cmd_pos topics bridged
+       by ros_gz_bridge instead of ros2_control. -->
   <gazebo>
-    <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
-      <parameters>$(find bipedal_robot_description)/config/ros2_controllers.yaml</parameters>
+    <plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher"/>
+
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>left_hip_joint</joint_name>
+      <topic>/model/bipedal_robot/joint/left_hip_joint/cmd_pos</topic>
+      <p_gain>150</p_gain>
+      <i_gain>0.5</i_gain>
+      <d_gain>8</d_gain>
+      <i_max>20</i_max>
+      <i_min>-20</i_min>
+      <cmd_max>150</cmd_max>
+      <cmd_min>-150</cmd_min>
+    </plugin>
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>left_knee_joint</joint_name>
+      <topic>/model/bipedal_robot/joint/left_knee_joint/cmd_pos</topic>
+      <p_gain>120</p_gain>
+      <i_gain>0.4</i_gain>
+      <d_gain>6</d_gain>
+      <i_max>15</i_max>
+      <i_min>-15</i_min>
+      <cmd_max>100</cmd_max>
+      <cmd_min>-100</cmd_min>
+    </plugin>
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>left_ankle_joint</joint_name>
+      <topic>/model/bipedal_robot/joint/left_ankle_joint/cmd_pos</topic>
+      <p_gain>60</p_gain>
+      <i_gain>0.2</i_gain>
+      <d_gain>3</d_gain>
+      <i_max>8</i_max>
+      <i_min>-8</i_min>
+      <cmd_max>50</cmd_max>
+      <cmd_min>-50</cmd_min>
+    </plugin>
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>right_hip_joint</joint_name>
+      <topic>/model/bipedal_robot/joint/right_hip_joint/cmd_pos</topic>
+      <p_gain>150</p_gain>
+      <i_gain>0.5</i_gain>
+      <d_gain>8</d_gain>
+      <i_max>20</i_max>
+      <i_min>-20</i_min>
+      <cmd_max>150</cmd_max>
+      <cmd_min>-150</cmd_min>
+    </plugin>
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>right_knee_joint</joint_name>
+      <topic>/model/bipedal_robot/joint/right_knee_joint/cmd_pos</topic>
+      <p_gain>120</p_gain>
+      <i_gain>0.4</i_gain>
+      <d_gain>6</d_gain>
+      <i_max>15</i_max>
+      <i_min>-15</i_min>
+      <cmd_max>100</cmd_max>
+      <cmd_min>-100</cmd_min>
+    </plugin>
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>right_ankle_joint</joint_name>
+      <topic>/model/bipedal_robot/joint/right_ankle_joint/cmd_pos</topic>
+      <p_gain>60</p_gain>
+      <i_gain>0.2</i_gain>
+      <d_gain>3</d_gain>
+      <i_max>8</i_max>
+      <i_min>-8</i_min>
+      <cmd_max>50</cmd_max>
+      <cmd_min>-50</cmd_min>
     </plugin>
   </gazebo>
 

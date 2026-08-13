@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Kinematic walking-pattern generator + analytic leg IK for the bipedal robot.
 
-Publishes position targets to /leg_position_controller/commands, the topic
-the JointGroupPositionController (ros2_controllers.yaml) actually listens on.
+Publishes position targets to /model/bipedal_robot/joint/<name>/cmd_pos (see
+bipedal.urdf's per-joint <topic> override), the topic the JointPositionController
+plugins listen on, bridged to ROS by ros_gz_bridge in the launch files.
 
 Structurally inspired by classic footstep -> swing/CoM trajectory -> inverse
 kinematics walking-pattern-generator pipelines (e.g. LIPM-based generators
@@ -20,13 +21,13 @@ import math
 import rclpy
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
-from std_msgs.msg import Float64MultiArray
+from std_msgs.msg import Float64
 
 # Leg geometry, from bipedal.urdf (thigh: hip->knee, shin: knee->ankle).
 THIGH_LENGTH = 0.4
 SHIN_LENGTH = 0.35
 
-# Joint order expected by leg_position_controller (ros2_controllers.yaml).
+# Joints driven, and the gait/IK order they're solved in.
 JOINT_ORDER = [
     "left_hip_joint", "left_knee_joint", "left_ankle_joint",
     "right_hip_joint", "right_knee_joint", "right_ankle_joint",
@@ -90,9 +91,12 @@ class WalkingPatternGenerator(Node):
     def __init__(self):
         super().__init__("walking_pattern_generator")
 
-        self._cmd_pub = self.create_publisher(
-            Float64MultiArray, "/leg_position_controller/commands", 10
-        )
+        self._cmd_pubs = {
+            name: self.create_publisher(
+                Float64, f"/model/bipedal_robot/joint/{name}/cmd_pos", 10
+            )
+            for name in JOINT_ORDER
+        }
         self.create_subscription(Twist, "/cmd_vel", self._cmd_vel_cb, 10)
 
         self._forward_speed = 0.0
@@ -132,12 +136,11 @@ class WalkingPatternGenerator(Node):
         targets = dict(zip(
             JOINT_ORDER, [l_hip, l_knee, l_ankle, r_hip, r_knee, r_ankle]
         ))
-        msg = Float64MultiArray()
-        msg.data = [
-            max(JOINT_LIMITS[name][0], min(JOINT_LIMITS[name][1], targets[name]))
-            for name in JOINT_ORDER
-        ]
-        self._cmd_pub.publish(msg)
+        for name in JOINT_ORDER:
+            lo, hi = JOINT_LIMITS[name]
+            msg = Float64()
+            msg.data = max(lo, min(hi, targets[name]))
+            self._cmd_pubs[name].publish(msg)
 
 
 def main(args=None):

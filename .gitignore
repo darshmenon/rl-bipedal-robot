@@ -27,6 +27,9 @@ logs/
 *.ogv
 videos/
 
+# Vendored Unitree RL gym clone (pretrained walk policies)
+unitree_rl_gym/
+
 # OS
 .DS_Store
 Thumbs.db
