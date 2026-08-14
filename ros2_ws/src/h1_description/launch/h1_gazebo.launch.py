@@ -43,6 +43,18 @@ def generate_launch_description():
         os.pathsep.join(p for p in [resource_path, existing_resource_path] if p)
     )
 
+    # Gazebo Transport pub/sub is scoped by GZ_PARTITION, independent of
+    # ROS_DOMAIN_ID (which only isolates the ROS 2/DDS bridge side). Without
+    # this, every gz-sim instance on the machine defaults to the same
+    # partition and cross-talks -- e.g. this launch's /clock bridge picking
+    # up another concurrent gz-sim's clock, which surfaces in ROS as
+    # robot_state_publisher's "Moved backwards in time" warning. Default to
+    # a partition unique to this process unless the caller already set one.
+    gz_partition = SetEnvironmentVariable(
+        'GZ_PARTITION',
+        os.environ.get('GZ_PARTITION', f'h1-{os.getpid()}')
+    )
+
     z_pos_arg = DeclareLaunchArgument(
         'z_pos',
         default_value='1.05',
@@ -195,6 +207,7 @@ def generate_launch_description():
 
     return LaunchDescription([
         gz_resource_path,
+        gz_partition,
         z_pos_arg,
         use_sim_time_arg,
         headless_arg,

@@ -405,6 +405,15 @@ class XBotLFreeEnv(LeggedRobot):
 
         return c_update
 
+    def _reward_lateral_balance(self):
+        """
+        Rewards a steady trunk by discouraging lateral drift, roll, pitch, and roll/pitch angular velocity.
+        """
+        lateral_vel = torch.abs(self.base_lin_vel[:, 1] - self.commands[:, 1])
+        tilt = torch.sum(torch.square(self.base_euler_xyz[:, :2]), dim=1)
+        wobble = torch.sum(torch.square(self.base_ang_vel[:, :2]), dim=1)
+        return torch.exp(-6.0 * lateral_vel - 12.0 * tilt - 2.0 * wobble)
+
     def _reward_track_vel_hard(self):
         """
         Calculates a reward for accurately tracking both linear and angular velocity commands.

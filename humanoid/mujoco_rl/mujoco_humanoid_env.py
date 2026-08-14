@@ -32,6 +32,8 @@ CLIP_ACTIONS = 18.0
 CLIP_OBS = 18.0
 CYCLE_TIME = 0.64
 BASE_HEIGHT_TARGET = 0.89
+FALL_HEIGHT = 0.5
+FALL_ROLL_PITCH = 0.65
 NUM_SINGLE_OBS = 47
 FRAME_STACK = 15
 NUM_OBS = FRAME_STACK * NUM_SINGLE_OBS
@@ -151,16 +153,23 @@ class MujocoHumanoidEnv(gym.Env):
         base_z = self.data.qpos[2]
         base_vel = self.data.qvel[:3]
 
-        vel_err = base_vel[0] - self.cmd_vx
+        forward_vel_err = base_vel[0] - self.cmd_vx
+        lateral_vel_err = base_vel[1] - self.cmd_vy
+        yaw_rate_err = omega[2] - self.cmd_dyaw
+        tilt_err = eu_ang[0] ** 2 + eu_ang[1] ** 2
+        wobble_err = omega[0] ** 2 + omega[1] ** 2
         reward = 0.0
-        reward += 1.2 * math.exp(-5.0 * vel_err ** 2)
-        reward += 1.0 * math.exp(-10.0 * (eu_ang[0] ** 2 + eu_ang[1] ** 2))
+        reward += 1.2 * math.exp(-5.0 * forward_vel_err ** 2)
+        reward += 0.5 * math.exp(-8.0 * lateral_vel_err ** 2)
+        reward += 0.4 * math.exp(-6.0 * yaw_rate_err ** 2)
+        reward += 1.4 * math.exp(-12.0 * tilt_err)
+        reward += 0.4 * math.exp(-2.0 * wobble_err)
         reward += 0.2 * math.exp(-20.0 * (base_z - BASE_HEIGHT_TARGET) ** 2)
         reward -= 1e-5 * float(np.sum(np.square(self.data.ctrl)))
         reward -= 0.002 * float(np.sum(np.square(action - self.prev_action)))
         reward += 0.5  # alive bonus
 
-        fell = base_z < 0.5 or abs(eu_ang[0]) > 0.8 or abs(eu_ang[1]) > 0.8
+        fell = base_z < FALL_HEIGHT or abs(eu_ang[0]) > FALL_ROLL_PITCH or abs(eu_ang[1]) > FALL_ROLL_PITCH
         if fell:
             reward -= 10.0
 
@@ -169,7 +178,14 @@ class MujocoHumanoidEnv(gym.Env):
 
         terminated = bool(fell)
         truncated = bool(self.count >= self.max_steps)
-        return obs, reward, terminated, truncated, {"base_height": base_z, "forward_vel": base_vel[0]}
+        return obs, reward, terminated, truncated, {
+            "base_height": base_z,
+            "forward_vel": base_vel[0],
+            "lateral_vel": base_vel[1],
+            "roll": eu_ang[0],
+            "pitch": eu_ang[1],
+            "yaw_rate": omega[2],
+        }
 
     def render(self):
         if self.render_mode != "human":

@@ -40,6 +40,10 @@ def test_step_returns_expected_shapes(env):
     assert isinstance(truncated, bool)
     assert 'base_height' in info
     assert 'forward_vel' in info
+    assert 'lateral_vel' in info
+    assert 'roll' in info
+    assert 'pitch' in info
+    assert 'yaw_rate' in info
 
 
 def test_alive_bonus_only_reward_stays_positive_near_stand(env):

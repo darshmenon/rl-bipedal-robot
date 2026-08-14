@@ -176,8 +176,8 @@ class XBotLCfg(LeggedRobotCfg):
         min_dist = 0.2
         max_dist = 0.5
         # put some settings here for LLM parameter tuning
-        target_joint_pos_scale = 0.17    # rad
-        target_feet_height = 0.06        # m
+        target_joint_pos_scale = 0.14    # rad
+        target_feet_height = 0.05        # m
         cycle_time = 0.64                # sec
         # if true negative total rewards are clipped at zero (avoids early termination problems)
         only_positive_rewards = True
@@ -188,26 +188,27 @@ class XBotLCfg(LeggedRobotCfg):
         class scales:
             # reference motion tracking
             joint_pos = 1.6
-            feet_clearance = 1.
+            feet_clearance = 0.8
             feet_contact_number = 1.2
             # gait
-            feet_air_time = 1.
-            foot_slip = -0.05
-            feet_distance = 0.2
-            knee_distance = 0.2
+            feet_air_time = 0.7
+            foot_slip = -0.08
+            feet_distance = 0.35
+            knee_distance = 0.3
             # contact
             feet_contact_forces = -0.01
             # vel tracking
             tracking_lin_vel = 1.2
             tracking_ang_vel = 1.1
             vel_mismatch_exp = 0.5  # lin_z; ang x,y
+            lateral_balance = 0.6
             low_speed = 0.2
             track_vel_hard = 0.5
             # base pos
             default_joint_pos = 0.5
-            orientation = 1.
-            base_height = 0.2
-            base_acc = 0.2
+            orientation = 1.4
+            base_height = 0.3
+            base_acc = 0.35
             # energy
             action_smoothness = -0.002
             torques = -1e-5

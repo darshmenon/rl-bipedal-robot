@@ -2,6 +2,8 @@
 
 A reinforcement learning framework for training bipedal humanoid robots to walk, combining **MuJoCo** simulation with **ROS 2 Humble** deployment pipelines. Trained policies transfer from simulation to real hardware via domain randomization and system identification.
 
+![Unitree H1 walking in Gazebo](images/h1_walking_gazebo.gif)
+
 ![XBot-L walking in MuJoCo](images/mujoco_walking.png)
 
 ![Unitree H1 in RViz2](images/image.png)
@@ -282,15 +284,25 @@ source install/setup.bash
 ros2 launch h1_description display.launch.py        # RViz-only
 ros2 launch h1_description h1_gazebo.launch.py       # Gazebo + lidar + stand controller
 ros2 launch h1_description h1_gazebo.launch.py headless:=true
+ros2 launch h1_description h1_gazebo.launch.py controller:=walk   # pretrained RL walk
 ros2 launch h1_description h1_slam3d.launch.py       # + RTAB-Map 3D lidar SLAM
 ```
 
+This machine often runs ROS 2 graphs from other projects at the same time
+(default domain 0); set a distinct `ROS_DOMAIN_ID` (e.g. `export
+ROS_DOMAIN_ID=42`) before sourcing `install/setup.bash` to avoid DDS
+crosstalk.
+
 **Status:** command bridge, `/joint_states` TF, wall-time stabilizer publishing,
-and odometry feedback are confirmed working. Standing is not: H1 topples within
-a few seconds despite high sim-only sagittal PD gains and saturated closed-loop
-tilt feedback, settling into a resting pose rather than standing. **SLAM works
-regardless** — confirmed building a real occupancy grid on `/map` from the
-Mid-360 lidar and ground-truth odometry, independent of the standing problem.
+and odometry feedback are confirmed working. The default `stand` controller
+topples within a few seconds despite high sim-only sagittal PD gains and
+saturated closed-loop tilt feedback, settling into a resting pose rather than
+standing. **`controller:=walk` (the pretrained `unitree_rl_gym` H1 policy)
+works** — confirmed walking forward under Gazebo Sim (~12.7m in 29s, no
+falls) independent of the standing problem. **SLAM works regardless** —
+confirmed building a real occupancy grid on `/map` from the Mid-360 lidar and
+ground-truth odometry, though `h1_slam3d.launch.py` still forces the `stand`
+controller rather than `walk`.
 
 ### 3. Test imported Unitree humanoids
 
