@@ -30,6 +30,9 @@ videos/
 # Vendored Unitree RL gym clone (pretrained walk policies)
 unitree_rl_gym/
 
+# Downloaded TTS/STT model weights (fetched by voice_assistant/README.md)
+voice_assistant/models/
+
 # OS
 .DS_Store
 Thumbs.db

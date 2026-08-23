@@ -76,8 +76,9 @@ def generate_launch_description():
     controller_arg = DeclareLaunchArgument(
         'controller',
         default_value='stand',
-        description='Joint commander: stand | walk | none '
-                    '(walk = unitree_rl_gym pretrained H1 policy)'
+        description='Joint commander: stand | walk | behavior | none '
+                    '(walk = unitree_rl_gym pretrained H1 policy, '
+                    'behavior = humanoid_interface action server)'
     )
 
     urdf_file = os.path.join(pkg_h1_description, 'urdf', 'h1.urdf')
@@ -120,6 +121,27 @@ def generate_launch_description():
         mode = LaunchConfiguration('controller').perform(context).strip().lower()
         if mode in ('', 'none', 'off'):
             return []
+        if mode in ('behavior', 'interface', 'voice'):
+            return [
+                TimerAction(
+                    period=0.2,
+                    actions=[
+                        Node(
+                            package='humanoid_interface',
+                            executable='behavior_action_server.py',
+                            name='behavior_action_server',
+                            parameters=[{'use_sim_time': False}],
+                            output='screen',
+                            additional_env={
+                                'UNITREE_RL_GYM_ROOT': os.environ.get(
+                                    'UNITREE_RL_GYM_ROOT',
+                                    '/home/asimov/rl-bipedal-walking/unitree_rl_gym',
+                                )
+                            },
+                        ),
+                    ],
+                )
+            ]
         if mode in ('walk', 'rl', 'rl_walk'):
             return [
                 # As short a delay as possible: every extra second here is a

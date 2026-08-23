@@ -1,0 +1,10 @@
+# Requested humanoid behavior (discrete, safe commands).
+string behavior
+---
+# Outcome
+bool success
+string message
+---
+# Live status while executing
+string status
+float32 progress
