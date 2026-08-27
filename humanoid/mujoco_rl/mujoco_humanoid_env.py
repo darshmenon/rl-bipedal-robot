@@ -89,6 +89,8 @@ class MujocoHumanoidEnv(gym.Env):
         self.observation_space = spaces.Box(
             low=-CLIP_OBS, high=CLIP_OBS, shape=(NUM_OBS,), dtype=np.float32)
 
+        self.base_bid = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "base_link")
+
         self._init_qpos = None
         self._init_qvel = None
         self.hist_obs = None
@@ -130,7 +132,16 @@ class MujocoHumanoidEnv(gym.Env):
     def reset(self, *, seed=None, restart=None, options=None):
         super().reset(seed=seed)
         mujoco.mj_resetData(self.model, self.data)
-        self.data.qpos[2] = 0.95
+        # base_link's <body pos="0 0 0.88"> is baked into forward kinematics
+        # separately from qpos -- the free joint's qpos[2] is a TRANSLATION ON
+        # TOP OF that pos, not an absolute world height. Read the compiled
+        # rest height first so the spawn-height override below lands at the
+        # intended *world* height regardless of what the loaded MJCF bakes
+        # into base_link's pos (rather than hardcoding "0.88" and silently
+        # breaking again if a different robot XML is ever loaded here).
+        mujoco.mj_forward(self.model, self.data)
+        rest_height = self.data.xpos[self.base_bid][2]
+        self.data.qpos[2] = 0.95 - rest_height
         self.data.qpos[3] = 1.0  # quat w
         for adr in self.joint_qpos_adr:
             self.data.qpos[adr] = 0.0 + self.np_random.uniform(-0.02, 0.02)
@@ -159,7 +170,7 @@ class MujocoHumanoidEnv(gym.Env):
         q, dq, quat_xyzw, omega = self._get_state()
         eu_ang = quat_to_euler(quat_xyzw)
         base_y = self.data.qpos[1]
-        base_z = self.data.qpos[2]
+        base_z = self.data.xpos[self.base_bid][2]  # world height; qpos[2] is offset by base_link's XML pos, see reset()
         base_vel = self.data.qvel[:3]
 
         # Phase-locked lateral sway target: shift toward the stance leg each
