@@ -34,6 +34,12 @@ CYCLE_TIME = 0.64
 BASE_HEIGHT_TARGET = 0.89
 FALL_HEIGHT = 0.5
 FALL_ROLL_PITCH = 0.65
+# Lateral CoM sway: shift weight toward the stance leg each half-cycle instead
+# of just penalizing lateral drift, mirroring the ZMP sway target in bheema's
+# com_traj.py (low-pass filtered so the target doesn't teleport at phase switches).
+STANCE_WIDTH = 0.2
+SWAY_FRACTION = 0.6
+SWAY_FILTER_ALPHA = 0.85
 NUM_SINGLE_OBS = 47
 FRAME_STACK = 15
 NUM_OBS = FRAME_STACK * NUM_SINGLE_OBS
@@ -88,6 +94,7 @@ class MujocoHumanoidEnv(gym.Env):
         self.hist_obs = None
         self.prev_action = None
         self.count = 0
+        self.lateral_sway_target = 0.0
 
     def _get_state(self):
         q = self.data.qpos[self.joint_qpos_adr].copy()
@@ -132,6 +139,7 @@ class MujocoHumanoidEnv(gym.Env):
         self.prev_action = np.zeros(12, dtype=np.float32)
         self.hist_obs = [np.zeros(NUM_SINGLE_OBS, dtype=np.float32) for _ in range(FRAME_STACK)]
         self.count = 0
+        self.lateral_sway_target = 0.0
         obs = self._build_obs()
         return obs, {}
 
@@ -150,17 +158,31 @@ class MujocoHumanoidEnv(gym.Env):
         self.count += 1
         q, dq, quat_xyzw, omega = self._get_state()
         eu_ang = quat_to_euler(quat_xyzw)
+        base_y = self.data.qpos[1]
         base_z = self.data.qpos[2]
         base_vel = self.data.qvel[:3]
 
+        # Phase-locked lateral sway target: shift toward the stance leg each
+        # half-cycle (left stance for the first half, right for the second),
+        # low-pass filtered so the target moves rather than teleporting at
+        # the phase switch.
+        dt_ctrl = self.sim_dt * self.decimation
+        phase = (self.count * dt_ctrl % CYCLE_TIME) / CYCLE_TIME
+        zmp_target_y = (STANCE_WIDTH / 2.0) * SWAY_FRACTION if phase < 0.5 else -(STANCE_WIDTH / 2.0) * SWAY_FRACTION
+        prev_sway_target = self.lateral_sway_target
+        self.lateral_sway_target = SWAY_FILTER_ALPHA * prev_sway_target + (1.0 - SWAY_FILTER_ALPHA) * zmp_target_y
+        sway_vel_target = (self.lateral_sway_target - prev_sway_target) / dt_ctrl
+
         forward_vel_err = base_vel[0] - self.cmd_vx
-        lateral_vel_err = base_vel[1] - self.cmd_vy
+        lateral_vel_err = base_vel[1] - (self.cmd_vy + sway_vel_target)
+        lateral_pos_err = base_y - self.lateral_sway_target
         yaw_rate_err = omega[2] - self.cmd_dyaw
         tilt_err = eu_ang[0] ** 2 + eu_ang[1] ** 2
         wobble_err = omega[0] ** 2 + omega[1] ** 2
         reward = 0.0
         reward += 1.2 * math.exp(-5.0 * forward_vel_err ** 2)
         reward += 0.5 * math.exp(-8.0 * lateral_vel_err ** 2)
+        reward += 0.6 * math.exp(-30.0 * lateral_pos_err ** 2)
         reward += 0.4 * math.exp(-6.0 * yaw_rate_err ** 2)
         reward += 1.4 * math.exp(-12.0 * tilt_err)
         reward += 0.4 * math.exp(-2.0 * wobble_err)
@@ -182,6 +204,7 @@ class MujocoHumanoidEnv(gym.Env):
             "base_height": base_z,
             "forward_vel": base_vel[0],
             "lateral_vel": base_vel[1],
+            "lateral_sway_target": self.lateral_sway_target,
             "roll": eu_ang[0],
             "pitch": eu_ang[1],
             "yaw_rate": omega[2],
